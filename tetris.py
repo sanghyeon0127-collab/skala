@@ -7,8 +7,11 @@ pygame.init()
 BLOCK_SIZE = 30
 COLUMNS = 10
 ROWS = 20
-WIDTH = COLUMNS * BLOCK_SIZE
-HEIGHT = ROWS * BLOCK_SIZE
+BOARD_WIDTH = COLUMNS * BLOCK_SIZE
+BOARD_HEIGHT = ROWS * BLOCK_SIZE
+SIDE_PANEL_WIDTH = 120
+SCREEN_WIDTH = BOARD_WIDTH + SIDE_PANEL_WIDTH
+SCREEN_HEIGHT = BOARD_HEIGHT
 FPS = 10
 
 COLORS = [
@@ -33,10 +36,10 @@ SHAPES = [
 ]
 
 class Piece:
-    def __init__(self, x, y, shape, color):
+    def __init__(self, x, y, rotations, color):
         self.x = x
         self.y = y
-        self.shape = shape
+        self.shape = rotations
         self.color = color
         self.rotation = 0
 
@@ -45,7 +48,7 @@ def create_grid(locked_positions=None):
     grid = [[(0, 0, 0) for _ in range(COLUMNS)] for _ in range(ROWS)]
     if locked_positions:
         for (x, y), color in locked_positions.items():
-            if y >= 0:
+            if 0 <= x < COLUMNS and 0 <= y < ROWS:
                 grid[y][x] = color
     return grid
 
@@ -66,15 +69,17 @@ def valid_space(piece, grid):
     formatted = convert_shape_format(piece)
 
     for pos in formatted:
-        if pos not in accepted_positions:
-            if pos[1] >= 0:
-                return False
+        x, y = pos
+        if x < 0 or x >= COLUMNS or y >= ROWS:
+            return False
+        if y >= 0 and pos not in accepted_positions:
+            return False
     return True
 
 
-def check_lost(positions):
-    for x, y in positions:
-        if y < 1:
+def check_lost(locked_positions):
+    for x, y in locked_positions:
+        if y < 0:
             return True
     return False
 
@@ -94,55 +99,87 @@ def rotate_shape(shape):
 
 
 def clear_rows(grid, locked):
-    inc = 0
-    for i in range(ROWS - 1, -1, -1):
-        row = grid[i]
-        if (0, 0, 0) not in row:
-            inc += 1
-            for j in range(COLUMNS):
-                try:
-                    del locked[(j, i)]
-                except KeyError:
-                    continue
-    if inc > 0:
-        for key in sorted(list(locked), key=lambda x: x[1])[::-1]:
-            x, y = key
+    rows_to_clear = [i for i in range(ROWS) if all(grid[i][j] != (0, 0, 0) for j in range(COLUMNS))]
+    if not rows_to_clear:
+        return 0
+
+    for row in rows_to_clear:
+        for col in range(COLUMNS):
+            locked.pop((col, row), None)
+
+    for key in sorted(list(locked), key=lambda x: x[1]):
+        x, y = key
+        shift = sum(1 for row in rows_to_clear if row > y)
+        if shift > 0:
             color = locked.pop(key)
-            locked[(x, y + inc)] = color
-    return inc
+            locked[(x, y + shift)] = color
+
+    return len(rows_to_clear)
 
 
 def draw_grid(surface, grid):
+    offset_x = SIDE_PANEL_WIDTH
     for i in range(ROWS):
         for j in range(COLUMNS):
-            pygame.draw.rect(surface, grid[i][j], (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 0)
+            pygame.draw.rect(surface, grid[i][j], (offset_x + j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 0)
 
-    for i in range(ROWS):
-        pygame.draw.line(surface, (128, 128, 128), (0, i * BLOCK_SIZE), (WIDTH, i * BLOCK_SIZE))
-    for j in range(COLUMNS):
-        pygame.draw.line(surface, (128, 128, 128), (j * BLOCK_SIZE, 0), (j * BLOCK_SIZE, HEIGHT))
+    for i in range(ROWS + 1):
+        pygame.draw.line(surface, (128, 128, 128), (offset_x, i * BLOCK_SIZE), (offset_x + BOARD_WIDTH, i * BLOCK_SIZE))
+    for j in range(COLUMNS + 1):
+        pygame.draw.line(surface, (128, 128, 128), (offset_x + j * BLOCK_SIZE, 0), (offset_x + j * BLOCK_SIZE, BOARD_HEIGHT))
 
 
-def draw_window(surface, grid):
+def draw_next_shape(surface, piece):
+    offset_x = 10
+    offset_y = 10
+    form = piece.shape[piece.rotation % len(piece.shape)]
+
+    for i, line in enumerate(form):
+        for j, column in enumerate(line):
+            if column == 1:
+                pygame.draw.rect(
+                    surface,
+                    piece.color,
+                    (
+                        offset_x + j * BLOCK_SIZE,
+                        offset_y + i * BLOCK_SIZE,
+                        BLOCK_SIZE,
+                        BLOCK_SIZE,
+                    ),
+                )
+                pygame.draw.rect(
+                    surface,
+                    (128, 128, 128),
+                    (
+                        offset_x + j * BLOCK_SIZE,
+                        offset_y + i * BLOCK_SIZE,
+                        BLOCK_SIZE,
+                        BLOCK_SIZE,
+                    ),
+                    1,
+                )
+
+
+def draw_window(surface, grid, next_piece):
     surface.fill((0, 0, 0))
     draw_grid(surface, grid)
+    draw_next_shape(surface, next_piece)
     pygame.display.update()
 
 
 def main():
     locked_positions = {}
-    grid = create_grid(locked_positions)
-
-    change_piece = False
-    run = True
     current_piece = get_shape()
     next_piece = get_shape()
     clock = pygame.time.Clock()
     fall_time = 0
     fall_speed = 0.5
 
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption('Tetris')
+
+    run = True
+    change_piece = False
 
     while run:
         grid = create_grid(locked_positions)
@@ -152,7 +189,7 @@ def main():
         if fall_time / 1000 >= fall_speed:
             fall_time = 0
             current_piece.y += 1
-            if not valid_space(current_piece, grid) and current_piece.y > 0:
+            if not valid_space(current_piece, grid):
                 current_piece.y -= 1
                 change_piece = True
 
@@ -186,25 +223,23 @@ def main():
                     change_piece = True
 
         shape_positions = convert_shape_format(current_piece)
-
         for x, y in shape_positions:
             if y >= 0:
                 grid[y][x] = current_piece.color
 
         if change_piece:
-            for pos in shape_positions:
-                x, y = pos
+            for x, y in shape_positions:
                 if y >= 0:
                     locked_positions[(x, y)] = current_piece.color
             current_piece = next_piece
             next_piece = get_shape()
             change_piece = False
-            lines_cleared = clear_rows(grid, locked_positions)
+            clear_rows(grid, locked_positions)
 
-            if check_lost(list(locked_positions)):
+            if check_lost(locked_positions):
                 run = False
 
-        draw_window(screen, grid)
+        draw_window(screen, grid, next_piece)
 
     pygame.quit()
 
