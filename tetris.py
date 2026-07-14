@@ -33,11 +33,11 @@ SHAPES = [
 ]
 
 class Piece:
-    def __init__(self, x, y, shape):
+    def __init__(self, x, y, shape, color):
         self.x = x
         self.y = y
         self.shape = shape
-        self.color = COLORS[SHAPES.index(shape) + 1]
+        self.color = color
         self.rotation = 0
 
 
@@ -80,12 +80,13 @@ def check_lost(positions):
 
 
 def get_shape():
-    shape = random.choice(SHAPES)
+    shape_index = random.randrange(len(SHAPES))
+    shape = SHAPES[shape_index]
     rotations = [shape]
     for _ in range(3):
         shape = rotate_shape(shape)
         rotations.append(shape)
-    return Piece(COLUMNS // 2 - 2, -1, rotations)
+    return Piece(COLUMNS // 2 - 2, -1, rotations, COLORS[shape_index + 1])
 
 
 def rotate_shape(shape):

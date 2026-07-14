@@ -17,15 +17,18 @@ def is_valid_password(password: str) -> bool:
     return bool(PASSWORD_PATTERN.match(password))
 
 
-if __name__ == "__main__":
-    sample_passwords = [
-        "Password1!",
-        "password1!",
-        "PASSWORD1!",
-        "Password!",
-        "Password1",
-    ]
+def main():
+    while True:
+        password = input("비밀번호를 입력하세요 (!quit 입력 시 종료): ")
+        if password == "!quit":
+            print("프로그램을 종료합니다.")
+            break
 
-    for pwd in sample_passwords:
-        result = "유효" if is_valid_password(pwd) else "무효"
-        print(f"{pwd}: {result}")
+        if is_valid_password(password):
+            print("비밀번호가 규칙에 적합합니다.")
+        else:
+            print("비밀번호가 규칙에 적합하지 않습니다.")
+
+
+if __name__ == "__main__":
+    main()
