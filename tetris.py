@@ -3,6 +3,7 @@ import random
 import sys
 
 pygame.init()
+pygame.font.init()
 
 BLOCK_SIZE = 30
 COLUMNS = 10
@@ -13,6 +14,7 @@ SIDE_PANEL_WIDTH = 120
 SCREEN_WIDTH = BOARD_WIDTH + SIDE_PANEL_WIDTH
 SCREEN_HEIGHT = BOARD_HEIGHT
 FPS = 10
+FONT = pygame.font.SysFont(None, 24)
 
 COLORS = [
     (0, 0, 0),
@@ -160,10 +162,12 @@ def draw_next_shape(surface, piece):
                 )
 
 
-def draw_window(surface, grid, next_piece):
+def draw_window(surface, grid, next_piece, score):
     surface.fill((0, 0, 0))
     draw_grid(surface, grid)
     draw_next_shape(surface, next_piece)
+    score_text = FONT.render(f"Score: {score}", True, (255, 255, 255))
+    surface.blit(score_text, (BOARD_WIDTH + 10, 10))
     pygame.display.update()
 
 
@@ -171,6 +175,7 @@ def main():
     locked_positions = {}
     current_piece = get_shape()
     next_piece = get_shape()
+    score = 0
     clock = pygame.time.Clock()
     fall_time = 0
     fall_speed = 0.5
@@ -234,12 +239,13 @@ def main():
             current_piece = next_piece
             next_piece = get_shape()
             change_piece = False
-            clear_rows(grid, locked_positions)
+            lines_cleared = clear_rows(grid, locked_positions)
+            score += lines_cleared * 100
 
             if check_lost(locked_positions):
                 run = False
 
-        draw_window(screen, grid, next_piece)
+        draw_window(screen, grid, next_piece, score)
 
     pygame.quit()
 
